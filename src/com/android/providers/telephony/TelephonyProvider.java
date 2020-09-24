@@ -2145,6 +2145,17 @@ public class TelephonyProvider extends ContentProvider
                 }
                 // Update the network type bitmask to keep them sync.
                 networkTypeBitmask = convertBearerBitmaskToNetworkTypeBitmask(bearerBitmask);
+                // Legacy bearer is deprecated, in order to be compatible with bearer_bitmask till
+                // both are removed (bearer_bitmask is marked as deprecated now), just appends
+                // bearer into bearer_bitmask only.
+                // Use the constant string BEARER instead of the "bearer" by hard code.
+                final String apnBearer = parser.getAttributeValue(null, BEARER);
+                if (apnBearer != null) {
+                    final int legacyBearerBitmask =
+                            getBitmaskForTech(Integer.parseInt(apnBearer));
+                    networkTypeBitmask |=
+                            convertBearerBitmaskToNetworkTypeBitmask(legacyBearerBitmask);
+                }
                 map.put(NETWORK_TYPE_BITMASK, networkTypeBitmask);
             }
             map.put(BEARER_BITMASK, bearerBitmask);
@@ -3147,7 +3158,14 @@ public class TelephonyProvider extends ContentProvider
     private Cursor getSubscriptionMatchingAPNList(SQLiteQueryBuilder qb, String[] projectionIn,
             String selection, String[] selectionArgs, String sort, int subId) {
         Cursor ret;
-        final TelephonyManager tm = ((TelephonyManager) getContext()
+        Context context = getContext();
+        SubscriptionManager subscriptionManager = (SubscriptionManager) context
+                .getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        if (!subscriptionManager.isActiveSubscriptionId(subId)) {
+            return null;
+        }
+
+        final TelephonyManager tm = ((TelephonyManager) context
                 .getSystemService(Context.TELEPHONY_SERVICE))
                 .createForSubscriptionId(subId);
         SQLiteDatabase db = getReadableDatabase();
